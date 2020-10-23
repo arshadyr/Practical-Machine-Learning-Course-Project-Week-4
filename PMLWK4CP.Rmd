@@ -1,0 +1,161 @@
+---
+title: "Practical Machine Learning Week 4 Course Project"
+author: "Arshad"
+date: "10/23/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, our goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har
+
+
+## Data Sources
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har.
+
+```{r}
+##Loading the required libraries
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(RColorBrewer)
+
+library(gbm)
+```
+
+## Loading the Datasets
+
+The data was downloaded directly from the internet and loaded into training_url and testing_url.The training data set had 19622 records, testing data set had 20 records and there were 160 variables.
+
+```{r}
+training_url<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testing_url<- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training_data<- read.csv(url(training_url))
+testing_data<- read.csv(url(testing_url))
+dim(training_data)
+dim(testing_data)
+```
+
+## Cleansing the data
+
+```{r}
+###Removing variables which had Nearly zero variance.
+nzv <- nearZeroVar(training_data)
+
+train_data <- training_data[,-nzv]
+test_data <- testing_data[,-nzv]
+
+dim(train_data)
+dim(test_data)
+
+###Removing variables which had NA values  
+na_val_col <- sapply(train_data, function(x) mean(is.na(x))) > 0.95
+train_data <- train_data[,na_val_col == FALSE]
+test_data <- test_data[,na_val_col == FALSE]
+
+dim(train_data)
+dim(test_data)
+
+###Removing the first 7 Variables which had non-numeric values and don't contribute to our model.  
+train_data<- train_data[, 8:59]
+test_data<- test_data[, 8:59]
+dim(train_data)
+dim(test_data)
+```
+
+## Partitioning the data
+
+As recommended in the course the training data in train_data was divided into two parts.One part of the data is training which consists 60% of the total data and the other part is testing which contains 40% of the total data.
+
+```{r}
+inTrain<- createDataPartition(train_data$classe, p=0.6, list=FALSE)
+inTrain<- createDataPartition(train_data$classe, p=0.6, list=FALSE)
+training<- train_data[inTrain,]
+testing<- train_data[-inTrain,]
+dim(training)
+dim(testing)
+```
+
+## Model Construction using Cross Validation.
+
+## Decision Tree Model & Prediction
+
+```{r}
+###Fitting data in the model and plotting   
+library(rattle)
+DT_model<- train(classe ~. , data=training, method= "rpart")
+fancyRpartPlot(DT_model$finalModel)
+
+###Prediction   
+set.seed(21243)
+DT_prediction<- predict(DT_model, testing)
+confusionMatrix(DT_prediction, testing$classe)
+```
+
+From the Decision Tree Model we got the prediction accuracy of 60% which was not in the satisafctory level.
+
+## Gradient Boosting Model and Prediction
+
+```{r}
+set.seed(25621)
+gbm_model<- train(classe~., data=training, method="gbm", verbose= FALSE)
+gbm_model$finalmodel
+
+###Prediction    
+gbm_prediction<- predict(gbm_model, testing)
+gbm_cm<-confusionMatrix(gbm_prediction, testing$classe)
+gbm_cm
+```
+
+From the Gradient Boosting Model we got the prediction accuracy of 96% which was in the satisafctory level.
+
+## Random Forest Model and Prediction
+
+```{r}
+set.seed(26817)
+###Fitting data in the model   
+RF_model<- train(classe ~. , data=training, method= "rf", ntree=100)
+###Prediction  
+RF_prediction<- predict(RF_model, testing)
+RF_cm<-confusionMatrix(RF_prediction, testing$classe)
+RF_cm
+###plot    
+plot(RF_cm$table, col=RF_cm$byClass, main="Random Forest Accuracy")
+```
+
+From the Random Forest Model we got the prediction accuracy of 99% which was close to perfect accuracy level.
+
+## To reach a conclusion we need to see how each model has predicted the validation dataset across the classifications. The Decision Tree model was not considered as it didn’t reach the satisfactory prediction accuracy level, so only Random Forest and Gradient Boosting models are being compared to see which is more accurate.
+
+```{r}
+RF_cm$overall
+gbm_cm$overall
+```
+
+## Conclusion
+
+After going throught the overall statistics data, we can conclude that the Random Forest is more accurate than GBM. Hence we will be selecting Random Forest model for final prediction from test_data .
+
+## Final Prediction using Random Forest model on the testing data
+
+```{r}
+prediction_test<- predict(RF_model, test_data)
+prediction_test
+```
+
